@@ -5,7 +5,14 @@
 // secrets. All methods accept a context so callers can enforce timeouts and
 // cancellation.
 //
-// Usage:
+// # Configuration
+//
+// Authentication is token-based. The token is expected to be supplied via the
+// [Config.Token] field or the VAULT_TOKEN environment variable before the
+// client is constructed. The [Config.Mount] field specifies the KV v2 mount
+// path (defaults to "secret" if omitted).
+//
+// # Usage
 //
 //	cfg := vault.Config{
 //		Address: "https://vault.example.com",
@@ -22,7 +29,8 @@
 //		log.Fatal(err)
 //	}
 //
-Authentication is token-based. The token is expected to be supplied via the
-[Config.Token] field or the VAULT_TOKEN environment variable before the client
-is constructed.
+// # Error Handling
+//
+// Methods return a [SecretNotFoundError] when a secret path does not exist,
+// allowing callers to distinguish missing secrets from other API failures.
 package vault
