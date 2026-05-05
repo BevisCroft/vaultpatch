@@ -67,6 +67,16 @@ func TestCheckAll_MixedResults(t *testing.T) {
 	}
 }
 
+// TestCheckAll_EmptyChecks verifies that CheckAll returns an empty slice
+// rather than nil when called with no checks.
+func TestCheckAll_EmptyChecks(t *testing.T) {
+	c := access.New(baseRules())
+	results := c.CheckAll(context.Background(), nil)
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results, got %d", len(results))
+	}
+}
+
 func TestFprint_Output(t *testing.T) {
 	results := []access.Result{
 		{Path: "secret/prod/db", Op: access.PermRead, Allowed: true, Reason: "matched rule prefix \"secret/prod/\""},
