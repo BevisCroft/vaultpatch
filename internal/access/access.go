@@ -73,3 +73,15 @@ func (c *Checker) CheckAll(ctx context.Context, checks []struct {
 	}
 	return out
 }
+
+// AllAllowed returns true only if every Result in the slice is allowed.
+// It is a convenience helper for callers that run CheckAll and need a
+// single boolean gate before proceeding with a batch operation.
+func AllAllowed(results []Result) bool {
+	for _, r := range results {
+		if !r.Allowed {
+			return false
+		}
+	}
+	return true
+}
