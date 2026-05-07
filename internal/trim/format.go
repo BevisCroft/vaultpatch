@@ -37,3 +37,18 @@ func Fprint(w io.Writer, results []Result) {
 		}
 	}
 }
+
+// Summary returns counts of successful, skipped, and failed results.
+func Summary(results []Result) (trimmed, skipped, failed int) {
+	for _, r := range results {
+		switch {
+		case r.Err != nil:
+			failed++
+		case len(r.Removed) == 0:
+			skipped++
+		default:
+			trimmed++
+		}
+	}
+	return
+}
