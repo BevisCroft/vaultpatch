@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -73,7 +74,8 @@ func New(cfg Config) (*Notifier, error) {
 }
 
 // Send marshals ev as JSON and POSTs it to the configured webhook URL.
-// A non-2xx HTTP status is treated as an error.
+// A non-2xx HTTP status is treated as an error; the response body (up to
+// 256 bytes) is included in the error message to aid debugging.
 func (n *Notifier) Send(ctx context.Context, ev Event) error {
 	if ev.Timestamp.IsZero() {
 		ev.Timestamp = time.Now().UTC()
@@ -100,7 +102,8 @@ func (n *Notifier) Send(ctx context.Context, ev Event) error {
 	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("notify: webhook returned HTTP %d", resp.StatusCode)
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+		return fmt.Errorf("notify: unexpected status %d: %s", resp.StatusCode, bytes.TrimSpace(snippet))
 	}
 	return nil
 }
