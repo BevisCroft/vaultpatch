@@ -1,71 +1,54 @@
-// Package diff provides utilities for computing differences between
-// Vault secret maps across environments.
+// Package diff computes the difference between two sets of Vault secrets.
 package diff
 
-import "sort"
-
-// ChangeType represents the type of change detected for a secret key.
-type ChangeType string
-
-const (
-	ChangeAdded   ChangeType = "added"
-	ChangeRemoved ChangeType = "removed"
-	ChangeUpdated ChangeType = "updated"
+import (
+	"sort"
 )
 
-// Change represents a single key-level change between two secret maps.
-type Change struct {
+// Op represents the type of change for a secret key.
+type Op int
+
+const (
+	OpNone    Op = iota
+	OpAdded      // key exists in new but not old
+	OpRemoved    // key exists in old but not new
+	OpUpdated    // key exists in both but value changed
+)
+
+// Entry describes a single diff entry for one key.
+type Entry struct {
 	Key      string
-	Type     ChangeType
 	OldValue string
 	NewValue string
+	Op       Op
 }
 
-// Result holds the full diff result between a source and target secret map.
-type Result struct {
-	Changes []Change
-}
+// Compute returns the diff between oldSecrets and newSecrets.
+// Keys present in both with identical values are omitted.
+func Compute(oldSecrets, newSecrets map[string]string) []Entry {
+	seen := make(map[string]bool)
+	var entries []Entry
 
-// HasChanges returns true if the diff result contains any changes.
-func (r *Result) HasChanges() bool {
-	return len(r.Changes) > 0
-}
-
-// Compute calculates the difference between src and dst secret maps.
-// src is the baseline (e.g. current environment), dst is the desired state.
-func Compute(src, dst map[string]string) *Result {
-	result := &Result{}
-
-	for key, dstVal := range dst {
-		if srcVal, exists := src[key]; !exists {
-			result.Changes = append(result.Changes, Change{
-				Key:      key,
-				Type:     ChangeAdded,
-				NewValue: dstVal,
-			})
-		} else if srcVal != dstVal {
-			result.Changes = append(result.Changes, Change{
-				Key:      key,
-				Type:     ChangeUpdated,
-				OldValue: srcVal,
-				NewValue: dstVal,
-			})
+	for k, newVal := range newSecrets {
+		seen[k] = true
+		oldVal, exists := oldSecrets[k]
+		switch {
+		case !exists:
+			entries = append(entries, Entry{Key: k, NewValue: newVal, Op: OpAdded})
+		case oldVal != newVal:
+			entries = append(entries, Entry{Key: k, OldValue: oldVal, NewValue: newVal, Op: OpUpdated})
 		}
 	}
 
-	for key, srcVal := range src {
-		if _, exists := dst[key]; !exists {
-			result.Changes = append(result.Changes, Change{
-				Key:      key,
-				Type:     ChangeRemoved,
-				OldValue: srcVal,
-			})
+	for k, oldVal := range oldSecrets {
+		if !seen[k] {
+			entries = append(entries, Entry{Key: k, OldValue: oldVal, Op: OpRemoved})
 		}
 	}
 
-	sort.Slice(result.Changes, func(i, j int) bool {
-		return result.Changes[i].Key < result.Changes[j].Key
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Key < entries[j].Key
 	})
 
-	return result
+	return entries
 }

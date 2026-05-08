@@ -13,46 +13,66 @@ const (
 	colorYellow = "\033[33m"
 )
 
-// FormatOptions controls how a diff result is rendered.
-type FormatOptions struct {
-	Color   bool
-	MaskValues bool
-}
-
-// Fprint writes a human-readable diff to w using the provided options.
-func Fprint(w io.Writer, result *Result, opts FormatOptions) {
-	if !result.HasChanges() {
+// Fprint writes a human-readable diff to w.
+// If maskSecrets is true, values are replaced with "***".
+func Fprint(w io.Writer, entries []Entry, maskSecrets bool) {
+	if len(entries) == 0 {
 		fmt.Fprintln(w, "No changes detected.")
 		return
 	}
 
-	for _, c := range result.Changes {
-		switch c.Type {
-		case ChangeAdded:
-			line := fmt.Sprintf("+ %s = %s", c.Key, maskIfNeeded(c.NewValue, opts.MaskValues))
-			fmt.Fprintln(w, colorize(line, colorGreen, opts.Color))
-		case ChangeRemoved:
-			line := fmt.Sprintf("- %s = %s", c.Key, maskIfNeeded(c.OldValue, opts.MaskValues))
-			fmt.Fprintln(w, colorize(line, colorRed, opts.Color))
-		case ChangeUpdated:
-			oldVal := maskIfNeeded(c.OldValue, opts.MaskValues)
-			newVal := maskIfNeeded(c.NewValue, opts.MaskValues)
-			line := fmt.Sprintf("~ %s: %s -> %s", c.Key, oldVal, newVal)
-			fmt.Fprintln(w, colorize(line, colorYellow, opts.Color))
+	for _, e := range entries {
+		switch e.Op {
+		case OpAdded:
+			fmt.Fprintf(w, "%s+ %s = %s%s\n",
+				colorGreen, e.Key, maskIfNeeded(e.NewValue, maskSecrets), colorReset)
+		case OpRemoved:
+			fmt.Fprintf(w, "%s- %s = %s%s\n",
+				colorRed, e.Key, maskIfNeeded(e.OldValue, maskSecrets), colorReset)
+		case OpUpdated:
+			fmt.Fprintf(w, "%s~ %s: %s → %s%s\n",
+				colorYellow, e.Key,
+				maskIfNeeded(e.OldValue, maskSecrets),
+				maskIfNeeded(e.NewValue, maskSecrets),
+				colorReset)
 		}
 	}
+
+	added, removed, updated := countOps(entries)
+	parts := []string{}
+	if added > 0 {
+		parts = append(parts, fmt.Sprintf("%d added", added))
+	}
+	if removed > 0 {
+		parts = append(parts, fmt.Sprintf("%d removed", removed))
+	}
+	if updated > 0 {
+		parts = append(parts, fmt.Sprintf("%d updated", updated))
+	}
+	fmt.Fprintf(w, "\nSummary: %s\n", strings.Join(parts, ", "))
 }
 
-func colorize(s, color string, enabled bool) string {
-	if !enabled {
-		return s
+func maskIfNeeded(v string, mask bool) string {
+	if mask {
+		return "***"
 	}
+	return v
+}
+
+func colorize(color, s string) string {
 	return color + s + colorReset
 }
 
-func maskIfNeeded(val string, mask bool) string {
-	if !mask || val == "" {
-		return val
+func countOps(entries []Entry) (added, removed, updated int) {
+	for _, e := range entries {
+		switch e.Op {
+		case OpAdded:
+			added++
+		case OpRemoved:
+			removed++
+		case OpUpdated:
+			updated++
+		}
 	}
-	return strings.Repeat("*", 8)
+	return
 }
