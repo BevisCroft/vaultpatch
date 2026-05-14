@@ -61,6 +61,14 @@ func (r *Redactor) Apply(secrets map[string]string) map[string]string {
 	return out
 }
 
+// IsRedacted reports whether the given key would be redacted by any rule.
+// This is useful for pre-flight checks without needing to apply rules to a
+// full secrets map.
+func (r *Redactor) IsRedacted(key string) bool {
+	_, ok := r.match(key)
+	return ok
+}
+
 // match returns the replacement string and true if key matches any rule.
 func (r *Redactor) match(key string) (string, bool) {
 	lower := strings.ToLower(key)
